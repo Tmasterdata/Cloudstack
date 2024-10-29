@@ -1,0 +1,216 @@
+ALTER  PROC [dbo].[upsert_invoice_sales_detail_fct]
+AS
+BEGIN
+    -- Check if the invoice_sales_detail_fct table is empty
+    IF (SELECT COUNT(*) FROM invoice_sales_detail_fct) = 0
+    BEGIN
+        -- If empty, insert all records from the staging table
+        INSERT INTO invoice_sales_detail_fct
+        SELECT * FROM EDW_staging.dbo.invoice_sales_detail_fct
+    END
+    ELSE
+    BEGIN
+    
+    -- UPDATE invoice_sales_detail_fct SET EFFECTIVE_END_DATE = src.EFFECTIVE_END_DATE, IS_CURRENT = src.IS_CURRENT
+    -- FROM EDW_staging.dbo.invoice_sales_detail_fct src
+    --     INNER JOIN invoice_sales_detail_fct tgt
+    --         ON tgt.DIV_SID = src.DIV_SID
+    --         AND tgt.INVC_NUM = src.INVC_NUM
+    --         AND tgt.DT_SID = src.DT_SID
+    --         AND tgt.SEQ_NUM = src.SEQ_NUM
+    --         AND tgt.IS_CURRENT != src.IS_CURRENT
+
+    -- Insert records from the staging table into the target table
+    -- where there is no matching record in the target table
+    INSERT INTO invoice_sales_detail_fct
+    SELECT src.* 
+    FROM EDW_staging.dbo.invoice_sales_detail_fct src
+        LEFT JOIN invoice_sales_detail_fct tgt
+            ON tgt.DIV_SID = src.DIV_SID
+            AND tgt.INVC_NUM = src.INVC_NUM
+            AND tgt.DT_SID = src.DT_SID
+            AND tgt.SEQ_NUM = src.SEQ_NUM
+    WHERE tgt.DIV_SID IS NULL
+    END
+
+END
+-----------------------------------------------------------------
+-----------------------------------------------------------------
+
+
+ALTER PROC [dbo].[upsert_division_dim]
+AS
+BEGIN
+    IF (SELECT COUNT(*) FROM division_dim) = 0
+    BEGIN
+        INSERT INTO division_dim
+        SELECT * FROM EDW_staging.dbo.division_dim
+    END
+    ELSE
+    BEGIN
+    
+    UPDATE division_dim SET END_DT = src.END_DT, IS_CURRENT = src.IS_CURRENT
+    FROM EDW_staging.dbo.division_dim src
+        INNER JOIN division_dim tgt
+            ON tgt.DIV_SID = src.DIV_SID
+            AND tgt.START_DT = src.START_DT
+            AND tgt.IS_CURRENT != src.IS_CURRENT
+
+    INSERT INTO division_dim
+    SELECT src.* 
+    FROM EDW_staging.dbo.division_dim src
+        LEFT JOIN division_dim tgt
+            ON tgt.DIV_SID = src.DIV_SID
+    WHERE tgt.DIV_SID IS NULL
+    END
+
+
+END
+----------------------------------------------------------------
+----------------------------------------------------------------
+
+
+ALTER  PROC [dbo].[upsert_item_history_weekly_snpsht_fct]
+AS
+BEGIN
+
+UPDATE [edw_semantic].[dbo].[item_history_weekly_snpsht_fct]
+   SET HISTORY_RECORD_TYPE        = SRC.HISTORY_RECORD_TYPE
+      ,HISTORY_DATE_YYDDD         = SRC.HISTORY_DATE_YYDDD
+      ,HISTORY_MOVEMENT_QTY       = SRC.HISTORY_MOVEMENT_QTY
+      ,HISTORY_OUT_OF_STOCK_QTY   = SRC.HISTORY_OUT_OF_STOCK_QTY
+      ,HISTORY_DISTRIBUTION_QTY   = SRC.HISTORY_DISTRIBUTION_QTY
+      ,HISTORY_BOH_TOTAL          = SRC.HISTORY_BOH_TOTAL
+      ,HISTORY_PROMOTION_FLAG     = SRC.HISTORY_PROMOTION_FLAG
+      ,HISTORY_DEAL_FLAG          = SRC.HISTORY_DEAL_FLAG
+      ,HISTORY_PO_RCVD_PROMO      = SRC.HISTORY_PO_RCVD_PROMO
+      ,HISTORY_COST_EFFECTIVE_DAY = SRC.HISTORY_COST_EFFECTIVE_DAY
+      ,HISTORY_DEAL_EFFECTIVE_DAY = SRC.HISTORY_DEAL_EFFECTIVE_DAY
+      ,HISTORY_NUMBER_HITS        = SRC.HISTORY_NUMBER_HITS
+      ,HISTORY_LIST_TYPE          = SRC.HISTORY_LIST_TYPE
+      ,HISTORY_DEAL_AMT           = SRC.HISTORY_DEAL_AMT
+      ,HISTORY_BOH_TURN           = SRC.HISTORY_BOH_TURN
+      ,HISTORY_BOH_BUYIN          = SRC.HISTORY_BOH_BUYIN
+      ,HISTORY_BOH_PROMO          = SRC.HISTORY_BOH_PROMO
+      ,HISTORY_SEAS_FCST_FLAG     = SRC.HISTORY_SEAS_FCST_FLAG
+      ,HISTORY_BUFFER_STK_FLAG    = SRC.HISTORY_BUFFER_STK_FLAG
+      ,HISTORY_SPECIAL_FLAG       = SRC.HISTORY_SPECIAL_FLAG
+      ,HISTORY_CURRENT_LIST       = SRC.HISTORY_CURRENT_LIST
+ FROM [EDW_Staging_Test].[dbo].item_history_weekly_snpsht_fct AS SRC
+ JOIN [edw_semantic].[dbo].[division_dim] DIV
+   ON DIV.DIV_ID = SRC.HISTORY_MCLANE_DIV
+  AND DIV.IS_CURRENT = 1
+ JOIN [edw_semantic].[dbo].[item_dim] ITM
+   ON ITM.ITEM_NUM = CAST(TRIM(SRC.HISTORY_ITEM_NUMBER) AS INT)
+  AND ITM.DIV_PART = DIV.DIV_PART
+  AND ITM.IS_CURRENT = 1
+WHERE EXISTS (SELECT 1
+                FROM [edw_semantic].[dbo].item_history_weekly_snpsht_fct TGT
+               WHERE TGT.HISTORY_ITEM_SID = ITM.ITEM_SID 
+                 AND SRC.HISTORY_RECORD_TYPE = TGT.HISTORY_RECORD_TYPE
+                 AND SRC.HISTORY_DATE_YYDDD = TGT.HISTORY_DATE_YYDDD)
+
+
+INSERT INTO [edw_semantic].[dbo].[item_history_weekly_snpsht_fct]
+      (HISTORY_ITEM_SID
+      ,HISTORY_RECORD_TYPE
+      ,HISTORY_DATE_YYDDD
+      ,HISTORY_MOVEMENT_QTY
+      ,HISTORY_OUT_OF_STOCK_QTY
+      ,HISTORY_DISTRIBUTION_QTY
+      ,HISTORY_BOH_TOTAL
+      ,HISTORY_PROMOTION_FLAG
+      ,HISTORY_DEAL_FLAG
+      ,HISTORY_PO_RCVD_PROMO
+      ,HISTORY_COST_EFFECTIVE_DAY
+      ,HISTORY_DEAL_EFFECTIVE_DAY
+      ,HISTORY_NUMBER_HITS
+      ,HISTORY_LIST_TYPE
+      ,HISTORY_DEAL_AMT
+      ,HISTORY_BOH_TURN
+      ,HISTORY_BOH_BUYIN
+      ,HISTORY_BOH_PROMO
+      ,HISTORY_SEAS_FCST_FLAG
+      ,HISTORY_BUFFER_STK_FLAG
+      ,HISTORY_SPECIAL_FLAG
+      ,HISTORY_CURRENT_LIST)
+SELECT ITM.ITEM_SID
+      ,STG.HISTORY_RECORD_TYPE
+      ,STG.HISTORY_DATE_YYDDD
+      ,STG.HISTORY_MOVEMENT_QTY
+      ,STG.HISTORY_OUT_OF_STOCK_QTY
+      ,STG.HISTORY_DISTRIBUTION_QTY
+      ,STG.HISTORY_BOH_TOTAL
+      ,STG.HISTORY_PROMOTION_FLAG
+      ,STG.HISTORY_DEAL_FLAG
+      ,STG.HISTORY_PO_RCVD_PROMO
+      ,STG.HISTORY_COST_EFFECTIVE_DAY
+      ,STG.HISTORY_DEAL_EFFECTIVE_DAY
+      ,STG.HISTORY_NUMBER_HITS
+      ,STG.HISTORY_LIST_TYPE
+      ,STG.HISTORY_DEAL_AMT
+      ,STG.HISTORY_BOH_TURN
+      ,STG.HISTORY_BOH_BUYIN
+      ,STG.HISTORY_BOH_PROMO
+      ,STG.HISTORY_SEAS_FCST_FLAG
+      ,STG.HISTORY_BUFFER_STK_FLAG
+      ,STG.HISTORY_SPECIAL_FLAG
+      ,STG.HISTORY_CURRENT_LIST
+ FROM [EDW_Staging_Test].[dbo].item_history_weekly_snpsht_fct  STG
+ JOIN [edw_semantic].[dbo].[division_dim] DIV
+   ON DIV.DIV_ID = STG.HISTORY_MCLANE_DIV
+  AND DIV.IS_CURRENT = 1
+ JOIN [edw_semantic].[dbo].[item_dim] ITM
+   ON ITM.ITEM_NUM = CAST(TRIM(STG.HISTORY_ITEM_NUMBER) AS INT)
+  AND ITM.DIV_PART = DIV.DIV_PART
+  AND ITM.IS_CURRENT = 1
+WHERE NOT EXISTS (SELECT 1
+                   FROM [edw_semantic].[dbo].item_history_weekly_snpsht_fct TGT
+                  WHERE TGT.HISTORY_ITEM_SID = ITM.ITEM_SID
+					AND TGT.HISTORY_RECORD_TYPE = STG.HISTORY_RECORD_TYPE
+					AND TGT.HISTORY_DATE_YYDDD = STG.HISTORY_DATE_YYDDD)
+        
+END
+
+---------------------------------------------------------------------
+---------------------------------------------------------------------
+
+ALTER PROC [dbo].[upsert_order_typ_dim]
+AS
+BEGIN
+ 
+    UPDATE [edw_semantic].[dbo].[order_typ_dim]
+       SET EFF_END_DT     = SRC.EFFECTIVE_END_DATE
+          ,IS_CURRENT = SRC.IS_CURRENT
+      FROM [EDW_staging].[dbo].[db2p_mc_entitycls_grp_cm1e_curated] SRC
+     INNER JOIN [edw_semantic].[dbo].[order_typ_dim] TGT
+        ON TGT.ORDER_TYP_SID = SRC.ENTITYCLS_GRP_CM1E_SID
+       AND SRC.CLS_TYP     = 'OPORD'  
+       AND TGT.EFF_START_DT    = SRC.EFFECTIVE_START_DATE
+       AND TGT.IS_CURRENT != SRC.IS_CURRENT
+
+
+    INSERT INTO [edw_semantic].[dbo].[order_typ_dim]
+         SELECT SRC.ENTITYCLS_GRP_CM1E_SID
+               ,SRC.CLS_ID
+               ,SRC.[DESC]
+               ,SRC.EFFECTIVE_START_DATE
+               ,SRC.EFFECTIVE_END_DATE
+               ,SRC.IS_CURRENT
+           FROM [EDW_staging].[dbo].[db2p_mc_entitycls_grp_cm1e_curated] SRC
+          WHERE SRC.CLS_TYP     = 'OPORD' 
+            AND NOT EXISTS (SELECT 1 
+                              FROM [edw_semantic].[dbo].[order_typ_dim] TGT
+                             WHERE TGT.ORDER_TYP_SID = SRC.ENTITYCLS_GRP_CM1E_SID
+                            ) 
+END
+------------------------------------------------------------------
+------------------------------------------------------------------
+
+
+
+
+
+
+
+ 
