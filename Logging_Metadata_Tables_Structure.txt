@@ -1,0 +1,65 @@
+SELECT                  [PipelineId],
+			[IsEnabled],
+			[Topic],
+			[TriggerFrequency],
+			[ServerName],
+			[DatabaseName],
+			[Username],
+			[SecretName],
+			[SourceType],
+			[SourceFormat],
+			[SourceLayer],
+			[SourceSchema],
+			[SourceTable],
+			[SourceCustomSQL],
+			[ColumnList],
+			[PrimaryKey],
+			[LoadType],
+			[DimensionLoadType],
+			[WhereClause],
+			[LoadByDateColumnName],
+			[LoadNumberOfDays],
+			[TargetLayer],
+			[TargetSchema],
+			[TargetTable],
+			[TargetWorkspaceName],
+			[TargetFormat],
+			[TargetDestinationWorkspace],
+			[TargetDestinationLakehouse],
+			[FileDirectory],
+			[MergeFlag],
+			[MergeFilePath]
+FROM [Metadata].[dbo].[metadata_pipeline]
+
+-------------------------------------------------------
+
+SELECT                  [source],
+			[schema],
+			[table],
+			[last_loaded_ts],
+			[is_successful_flag],
+			[expired_records],
+			[new_records],
+			[updated_records],
+			[unchanged_records],
+			[error],
+			[target_destination_workspace],
+			[target_destination_lakehouse]
+FROM [Logging].[dbo].[curated_snapshot_log]
+--------------------------------------------------------
+
+SELECT                  [source],
+			[schema],
+			[table],
+			[last_loaded_ts],
+			[is_successful_flag],
+			[expired_records],
+			[new_records],
+			[updated_records],
+			[unchanged_records],
+			[error],
+			[target_destination_workspace],
+			[target_destination_lakehouse]
+FROM [Logging].[dbo].[raw_snapshot_log]
+------------------------------------------------------
+
